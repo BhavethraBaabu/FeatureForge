@@ -1,0 +1,109 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: featureforge-app
+    ports:
+      - "8080:8080"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: featureforge
+      POSTGRES_USER: featureforge
+      POSTGRES_PASSWORD: featureforge
+      MONGO_HOST: mongo
+      MONGO_PORT: 27017
+      MONGO_DB: featureforge
+      JWT_SECRET: dev-only-secret-change-in-production-min-256-bits-long
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    networks:
+      - featureforge-net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: featureforge-postgres
+    environment:
+      POSTGRES_DB: featureforge
+      POSTGRES_USER: featureforge
+      POSTGRES_PASSWORD: featureforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U featureforge -d featureforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - featureforge-net
+
+  mongo:
+    image: mongo:7
+    container_name: featureforge-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - featureforge-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: featureforge-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - featureforge-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: featureforge-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - featureforge-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: featureforge-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - featureforge-net
+
+networks:
+  featureforge-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  mongo-data:
+  redis-data:
