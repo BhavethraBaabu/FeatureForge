@@ -1,4 +1,3 @@
-cat > src/main/java/com/featureforge/dto/EvaluateFlagRequest.java << 'EOF'
 package com.featureforge.dto;
 
 import jakarta.validation.constraints.NotBlank;

@@ -29,6 +29,7 @@ public class FeatureFlagService {
     private final ProjectService projectService;
     private final AccessControlService accessControlService;
     private final RolloutEngine rolloutEngine;
+    private final CachedFlagLookupService cachedFlagLookupService;
 
     @Transactional
     public FeatureFlagResponse create(UUID projectId, CreateFeatureFlagRequest request, UUID requesterId) {
@@ -50,6 +51,7 @@ public class FeatureFlagService {
                 .createdBy(requesterId)
                 .build();
         featureFlagRepository.save(flag);
+        cachedFlagLookupService.evictAfterMutation(projectId, flag.getKey());
 
         log.info("Flag '{}' created in project {} (enabled={}, rollout={}%)",
                 flag.getKey(), projectId, flag.isEnabled(), flag.getRolloutPercentage());
@@ -84,6 +86,7 @@ public class FeatureFlagService {
         if (request.rolloutPercentage() != null) flag.setRolloutPercentage(request.rolloutPercentage());
 
         featureFlagRepository.save(flag);
+        cachedFlagLookupService.evictAfterMutation(flag.getProjectId(), flag.getKey());
         log.info("Flag '{}' updated by user {}", flag.getKey(), requesterId);
         return FeatureFlagResponse.fromEntity(flag);
     }
@@ -95,6 +98,7 @@ public class FeatureFlagService {
         accessControlService.requireRole(project.getOrganizationId(), requesterId, OrgRole.ADMIN);
 
         featureFlagRepository.delete(flag);
+        cachedFlagLookupService.evictAfterMutation(flag.getProjectId(), flag.getKey());
         log.info("Flag '{}' deleted by user {}", flag.getKey(), requesterId);
     }
 
