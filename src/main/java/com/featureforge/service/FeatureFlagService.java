@@ -5,6 +5,7 @@ import com.featureforge.domain.FlagOverride;
 import com.featureforge.domain.OrgRole;
 import com.featureforge.domain.Project;
 import com.featureforge.dto.*;
+import com.featureforge.event.FlagChangeEvent;
 import com.featureforge.exception.DuplicateResourceException;
 import com.featureforge.exception.ResourceNotFoundException;
 import com.featureforge.repository.FeatureFlagRepository;
@@ -30,6 +31,7 @@ public class FeatureFlagService {
     private final AccessControlService accessControlService;
     private final RolloutEngine rolloutEngine;
     private final CachedFlagLookupService cachedFlagLookupService;
+    private final FlagBroadcastService flagBroadcastService;
 
     @Transactional
     public FeatureFlagResponse create(UUID projectId, CreateFeatureFlagRequest request, UUID requesterId) {
@@ -53,9 +55,12 @@ public class FeatureFlagService {
         featureFlagRepository.save(flag);
         cachedFlagLookupService.evictAfterMutation(projectId, flag.getKey());
 
+        FeatureFlagResponse response = FeatureFlagResponse.fromEntity(flag);
+        flagBroadcastService.broadcast(projectId, new FlagChangeEvent(FlagChangeEvent.FlagChangeType.CREATED, response));
+
         log.info("Flag '{}' created in project {} (enabled={}, rollout={}%)",
                 flag.getKey(), projectId, flag.isEnabled(), flag.getRolloutPercentage());
-        return FeatureFlagResponse.fromEntity(flag);
+        return response;
     }
 
     public List<FeatureFlagResponse> listForProject(UUID projectId, UUID requesterId) {
@@ -87,8 +92,12 @@ public class FeatureFlagService {
 
         featureFlagRepository.save(flag);
         cachedFlagLookupService.evictAfterMutation(flag.getProjectId(), flag.getKey());
+
+        FeatureFlagResponse response = FeatureFlagResponse.fromEntity(flag);
+        flagBroadcastService.broadcast(flag.getProjectId(), new FlagChangeEvent(FlagChangeEvent.FlagChangeType.UPDATED, response));
+
         log.info("Flag '{}' updated by user {}", flag.getKey(), requesterId);
-        return FeatureFlagResponse.fromEntity(flag);
+        return response;
     }
 
     @Transactional
@@ -97,8 +106,10 @@ public class FeatureFlagService {
         Project project = projectService.findByIdOrThrow(flag.getProjectId());
         accessControlService.requireRole(project.getOrganizationId(), requesterId, OrgRole.ADMIN);
 
+        FeatureFlagResponse response = FeatureFlagResponse.fromEntity(flag);
         featureFlagRepository.delete(flag);
         cachedFlagLookupService.evictAfterMutation(flag.getProjectId(), flag.getKey());
+        flagBroadcastService.broadcast(flag.getProjectId(), new FlagChangeEvent(FlagChangeEvent.FlagChangeType.DELETED, response));
         log.info("Flag '{}' deleted by user {}", flag.getKey(), requesterId);
     }
 
