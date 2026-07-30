@@ -1,0 +1,35 @@
+<div class="auth-page">
+  <form class="auth-card" (ngSubmit)="submit()">
+    <h1>FeatureForge</h1>
+    <p class="subtitle">{{ mode() === 'login' ? 'Sign in to your account' : 'Create an account' }}</p>
+
+    <label>
+      Email
+      <input type="email" name="email" [(ngModel)]="email" required autocomplete="email" />
+    </label>
+
+    @if (mode() === 'register') {
+      <label>
+        Full name
+        <input type="text" name="fullName" [(ngModel)]="fullName" required autocomplete="name" />
+      </label>
+    }
+
+    <label>
+      Password
+      <input type="password" name="password" [(ngModel)]="password" required minlength="8" autocomplete="current-password" />
+    </label>
+
+    @if (errorMessage()) {
+      <p class="error">{{ errorMessage() }}</p>
+    }
+
+    <button type="submit" [disabled]="isSubmitting()">
+      {{ isSubmitting() ? 'Please wait...' : (mode() === 'login' ? 'Sign in' : 'Create account') }}
+    </button>
+
+    <button type="button" class="link-button" (click)="toggleMode()">
+      {{ mode() === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign in' }}
+    </button>
+  </form>
+</div>

@@ -1,0 +1,143 @@
+<div class="page">
+  <header class="topbar">
+    <h1>FeatureForge</h1>
+    <button class="link-button" (click)="logout()">Sign out</button>
+  </header>
+
+  <div class="columns">
+    <!-- Organizations -->
+    <section class="column">
+      <div class="column-header">
+        <h2>Organizations</h2>
+        <button class="icon-button" (click)="showNewOrgForm.set(!showNewOrgForm())">+</button>
+      </div>
+
+      @if (showNewOrgForm()) {
+        <form class="inline-form" (ngSubmit)="createOrganization()">
+          <input type="text" placeholder="Name" [(ngModel)]="newOrgName" name="newOrgName" required />
+          <input type="text" placeholder="slug-like-this" [(ngModel)]="newOrgSlug" name="newOrgSlug" required />
+          <button type="submit">Create</button>
+        </form>
+      }
+
+      <ul class="list">
+        @for (org of organizations(); track org.id) {
+          <li [class.selected]="org.id === selectedOrgId()" (click)="selectOrganization(org.id)">
+            <span class="item-name">{{ org.name }}</span>
+            <span class="badge">{{ org.yourRole }}</span>
+          </li>
+        }
+        @empty {
+          <li class="empty">No organizations yet.</li>
+        }
+      </ul>
+    </section>
+
+    <!-- Projects -->
+    <section class="column">
+      <div class="column-header">
+        <h2>Projects</h2>
+        @if (selectedOrgId()) {
+          <button class="icon-button" (click)="showNewProjectForm.set(!showNewProjectForm())">+</button>
+        }
+      </div>
+
+      @if (showNewProjectForm()) {
+        <form class="inline-form" (ngSubmit)="createProject()">
+          <input type="text" placeholder="Name" [(ngModel)]="newProjectName" name="newProjectName" required />
+          <input type="text" placeholder="project-key" [(ngModel)]="newProjectKey" name="newProjectKey" required />
+          <button type="submit">Create</button>
+        </form>
+      }
+
+      @if (selectedOrgId()) {
+        <ul class="list">
+          @for (project of projects(); track project.id) {
+            <li [class.selected]="project.id === selectedProjectId()" (click)="selectProject(project.id)">
+              <span class="item-name">{{ project.name }}</span>
+              <span class="badge muted">{{ project.key }}</span>
+            </li>
+          }
+          @empty {
+            <li class="empty">No projects yet.</li>
+          }
+        </ul>
+      } @else {
+        <p class="hint">Select an organization first.</p>
+      }
+    </section>
+
+    <!-- Flags -->
+    <section class="column column-wide">
+      <div class="column-header">
+        <h2>Feature Flags</h2>
+        @if (selectedProjectId()) {
+          <button class="icon-button" (click)="showNewFlagForm.set(!showNewFlagForm())">+</button>
+        }
+      </div>
+
+      @if (showNewFlagForm()) {
+        <form class="inline-form flag-form" (ngSubmit)="createFlag()">
+          <input type="text" placeholder="flag-key" [(ngModel)]="newFlagKey" name="newFlagKey" required />
+          <input type="text" placeholder="Display name" [(ngModel)]="newFlagName" name="newFlagName" required />
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="newFlagEnabled" name="newFlagEnabled" />
+            Enabled
+          </label>
+          <label class="rollout-label">
+            Rollout: {{ newFlagRollout }}%
+            <input type="range" min="0" max="100" [(ngModel)]="newFlagRollout" name="newFlagRollout" />
+          </label>
+          <button type="submit">Create flag</button>
+        </form>
+      }
+
+      @if (selectedProjectId()) {
+        <div class="flag-list">
+          @for (flag of flags(); track flag.id) {
+            <div class="flag-card">
+              <div class="flag-header">
+                <div>
+                  <span class="flag-name">{{ flag.name }}</span>
+                  <span class="flag-key">{{ flag.key }}</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" [checked]="flag.enabled" (change)="toggleEnabled(flag)" />
+                  <span>{{ flag.enabled ? 'On' : 'Off' }}</span>
+                </label>
+              </div>
+
+              <label class="rollout-label">
+                Rollout: {{ flag.rolloutPercentage }}%
+                <input
+                  type="range" min="0" max="100"
+                  [value]="flag.rolloutPercentage"
+                  (change)="updateRollout(flag, $any($event.target).valueAsNumber)"
+                />
+              </label>
+
+              <div class="evaluate-row">
+                <input
+                  type="text" placeholder="targeting key (e.g. user-123)"
+                  [(ngModel)]="evaluateTargetingKey[flag.id]" [name]="'eval-' + flag.id"
+                />
+                <button type="button" (click)="runEvaluate(flag)">Test</button>
+                @if (evaluateResult[flag.id]) {
+                  <span class="eval-result" [class.eval-true]="evaluateResult[flag.id].enabled">
+                    {{ evaluateResult[flag.id].enabled ? 'TRUE' : 'FALSE' }} ({{ evaluateResult[flag.id].reason }})
+                  </span>
+                }
+              </div>
+
+              <button type="button" class="delete-button" (click)="deleteFlag(flag)">Delete</button>
+            </div>
+          } @empty {
+            <p class="empty">No flags in this project yet.</p>
+          }
+        </div>
+      } @else {
+        <p class="hint">Select a project to see its flags.</p>
+      }
+    </section>
+  </div>
+</div>
