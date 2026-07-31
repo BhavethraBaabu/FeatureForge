@@ -8,6 +8,7 @@ import com.featureforge.dto.RegisterRequest;
 import com.featureforge.exception.EmailAlreadyExistsException;
 import com.featureforge.exception.InvalidCredentialsException;
 import com.featureforge.repository.UserRepository;
+import com.featureforge.security.GoogleTokenVerifier;
 import com.featureforge.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -19,6 +20,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -29,6 +32,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -63,6 +67,54 @@ public class AuthService {
 
         log.info("User logged in: {}", user.getEmail());
         return issueTokens(user);
+    }
+
+    /**
+     * "Sign in with Google" path. The frontend gets an ID token from Google's
+     * client-side SDK and sends it here; we verify it (GoogleTokenVerifier),
+     * then find-or-create a User by email and issue our own JWT pair — same
+     * AuthResponse shape as the password login/register paths, so the rest
+     * of the app doesn't know or care how the user authenticated.
+     *
+     * Account linking is by email: if someone already registered with a
+     * password using the same email Google reports, this logs them into that
+     * same account rather than creating a duplicate. That's safe specifically
+     * because Google only reports emails it has verified (checked below) —
+     * an unverified email can't be used to hijack an existing account.
+     */
+    @Transactional
+    public AuthResponse loginWithGoogle(String idToken) {
+        GoogleTokenVerifier.GoogleIdentity identity = googleTokenVerifier.verify(idToken);
+
+        if (!identity.emailVerified()) {
+            throw new InvalidCredentialsException();
+        }
+
+        String email = identity.email().toLowerCase();
+
+        User user = userRepository.findByEmail(email)
+                .orElseGet(() -> provisionGoogleUser(email, identity.name()));
+
+        log.info("User logged in via Google: {}", user.getEmail());
+        return issueTokens(user);
+    }
+
+    /**
+     * Google-provisioned accounts get a random, never-revealed password hash
+     * — there's no password to check, but passwordHash is NOT NULL, and this
+     * guarantees no one can ever log into this account via the password path.
+     */
+    private User provisionGoogleUser(String email, String name) {
+        User user = User.builder()
+                .email(email)
+                .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .fullName(name != null ? name : email)
+                .role(Role.MEMBER)
+                .build();
+
+        userRepository.save(user);
+        log.info("Provisioned new user via Google sign-in: {}", email);
+        return user;
     }
 
     private AuthResponse issueTokens(User user) {

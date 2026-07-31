@@ -1,6 +1,7 @@
 package com.featureforge.controller;
 
 import com.featureforge.dto.AuthResponse;
+import com.featureforge.dto.GoogleLoginRequest;
 import com.featureforge.dto.LoginRequest;
 import com.featureforge.dto.RegisterRequest;
 import com.featureforge.service.AuthService;
@@ -26,5 +27,10 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> google(@Valid @RequestBody GoogleLoginRequest request) {
+        return ResponseEntity.ok(authService.loginWithGoogle(request.idToken()));
     }
 }
